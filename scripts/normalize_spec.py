@@ -1,303 +1,248 @@
-import sys
-from PyQt4 import QtGui,QtCore
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 
+import sys
 from astropy.io import fits
 import numpy as np
-
+import pylab as pl
 import argparse
 
-class FitWindow(QtGui.QWidget):
-   """A class describing with PyQt4 GUI for normalizing the spectra by fitting continuum .
+def plot_fit(warr,farr,fitted,i_fit):
 
+   #making list of outliers
+   i_outliers=range(len(farr))
+   i_all=np.where(farr>0.)
+   mask1=np.in1d(i_outliers, i_fit)
+   mask2=np.in1d(i_outliers, i_all)
+   i_outliers=np.where(~mask1 & mask2)
 
-   Parameters
-   ----------
-   warr: ~numpy.ndarray
-       Array with wavelength
-
-   farr: ~numpy.ndarray
-       Array with fluxes
-
-   oarr: ~numpy.ndarray
-       Array with orders numbers
-
-   outfile: ~str
-       Name of the fits file the output will be written to
- 
-   fittype: ~str
-       Fitting type. Can be "individual" for fitting individual orders. For other values of this parameter whole spectrum will be fit simultaneously.
-
-   Returns
-   -------
-       The resulting spectrum will be saved to "outfile". The normalization will be performed only for orders which were inspected by hand.
-
-   Notes
-   -----
-       Rejected region should be in format "(Lower wavelength)-(Higher wavelength)" without spaces. In case of multiple regions 
-  
-   """
-   def __init__(self,warr,farr, oarr,outfile,fittype):
-      self.warr=warr #table with wavelengths
-      self.farr=farr #table with fluxes
-      self.oarr=oarr #table with orders
-      self.fittype=fittype #fit type
-      self.outfile=outfile #name of output file
-
-      super(FitWindow,self).__init__()
-      self.setWindowTitle("Normalizing spectrum")
-      self.layout()
-        
-   def layout(self):
-        
-      self.figure = plt.figure()
-      self.canvas = FigureCanvas(self.figure)
-      self.toolbar = NavigationToolbar(self.canvas, self)
-
-      self.fit_orderL = QtGui.QLabel('Fit order')
-      self.fit_orderE = QtGui.QLineEdit()
-      self.fit_orderE.setText("6")
-
-      self.iterationsL = QtGui.QLabel('Iterations')
-      self.iterationsE = QtGui.QLineEdit()
-      self.iterationsE.setText("10")
-
-      self.lowrejL = QtGui.QLabel('Lower rejection')
-      self.lowrejE = QtGui.QLineEdit()
-      self.lowrejE.setText("1")
-
-      self.uprejL = QtGui.QLabel('Upper rejection')
-      self.uprejE = QtGui.QLineEdit()
-      self.uprejE.setText("3")
-
-
-      self.rej_regionL = QtGui.QLabel('Rejection regions')
-      self.rej_regionE = QtGui.QLineEdit()
-
-      self.fitbutton=QtGui.QPushButton("Refit",self)
-      self.fitbutton.clicked.connect(self.fit)
-
-      self.exitbutton=QtGui.QPushButton("Exit + Save",self)
-      self.exitbutton.clicked.connect(self.exit_fitting)
-
-      self.nextbutton=QtGui.QPushButton("Next",self)
-      self.nextbutton.clicked.connect(self.next_order)
-
-
-      self.previousbutton=QtGui.QPushButton("Previous",self)
-      self.previousbutton.clicked.connect(self.previous_order)
-
-      grid = QtGui.QGridLayout()
-      grid.setSpacing(10)
-
-      grid.addWidget(self.canvas, 1, 0,1,8)
-      grid.addWidget(self.toolbar, 2, 0,1,8)
-
-      grid.addWidget(self.fit_orderL, 3, 0)
-      grid.addWidget(self.fit_orderE, 3, 1)
-      grid.addWidget(self.iterationsL, 3, 2)
-      grid.addWidget(self.iterationsE, 3, 3)
-      grid.addWidget(self.lowrejL, 3, 4)
-      grid.addWidget(self.lowrejE, 3, 5)
-      grid.addWidget(self.uprejL, 3, 6)
-      grid.addWidget(self.uprejE, 3, 7)
-      grid.addWidget(self.rej_regionL, 4, 0,1,1)
-      grid.addWidget(self.rej_regionE, 4, 1,1,7)
-
-
-      grid.addWidget(self.fitbutton, 5, 0,1,2)
-      grid.addWidget(self.previousbutton, 5, 2,1,2)
-      grid.addWidget(self.nextbutton, 5, 4,1,2)
-      grid.addWidget(self.exitbutton, 5, 7,1,1)
-
-        
+   figure = pl.figure()
+   ax1 = figure.add_subplot(211)
+   ax1.plot(warr[i_all],farr[i_all],c="green") 
+   ax1.scatter(warr[i_outliers],farr[i_outliers],c="red",edgecolor="None") 
       
-      self.orders=np.unique(self.oarr) #list of all orders in the spectrum
-      self.order_count=0 #keeps track of witch orders is being normalized
+   ax1.axes.get_xaxis().set_visible(False)
+   ax1.plot(warr[i_all],fitted[i_all],c="blue")
 
-      self.coefficients_tab=np.zeros_like(self.orders).tolist() #array that stores coefficients of polynomial fit to the order
+   ax2 = figure.add_subplot(212, sharex=ax1)
+   ax2.hold(False)
+   ax2.plot(warr[i_all],farr[i_all]/fitted[i_all],c="blue")
+   ax2.set_xlabel(r"Wavelength [$\AA$]")
 
-      self.fit()
-      self.setLayout(grid)
-      self.show()
-
-   def fit(self):                          #fitting part of module
-   
-      plt.clf()                            #cleaning plots so that previous fits are not stored on screen
-
-      try:                                 #reading parameters of the fit
-         fit_order=int(self.fit_orderE.text())
-         iterations=int(self.iterationsE.text())
-         lowrej=float(self.lowrejE.text())
-         uprej=float(self.uprejE.text())
-         rej_regions=str(self.rej_regionE.text()).split()
-      except ValueError:
-         print "Bad input"
-
-     
-      if self.fittype=="individual":       #if fittype=="individual" fit will be only to one order
-         o=self.orders[self.order_count]
-         o=int(o)
-         i_order=np.where(self.oarr==o)
-      else:                                #fitting to all orders and 
-         i_order=np.where(self.farr > 0.)
-
-   
+   pl.tight_layout()
+   pl.show()
 
 
-      for i in range(iterations):          #iterative fitting
-         if i==0:                          #first iteration - there are no residuals available
-            coefficients=np.polyfit(self.warr[i_order], self.farr[i_order], fit_order)
+def fit_spec(warr,farr,iterations,fit_order,lowrej,uprej,interactive=False):
+   for i in range(iterations):          #iterative fitting
+      if i==0:                          #first iteration - there are no residuals available
+         coefficients=np.polyfit(warr, farr, fit_order)
+         i_fit=i_fit=np.where(farr > 0.)
         
-         else:                             #fitting only to good points (not outliers)
-            if i_fit[0].size==0:           #if all point are outliers print error
-               print "Error while rejecting points - try higher values of upper rejection and lower rejection"
-               i_fit=order_i
-            coefficients=np.polyfit(self.warr[i_fit], self.farr[i_fit], fit_order)
+      else:                             #fitting only to good points (not outliers)
+         if i_fit[0].size==0:           #if all point are outliers print error
+            print "Error while rejecting points - try higher values of upper rejection and lower rejection"
+            i_fit=np.where(farr > 0.)
+         coefficients=np.polyfit(warr[i_fit], farr[i_fit], fit_order)
                
-         #actual fitting
-         func=np.poly1d(coefficients)
-         fitted=np.polyval(func,self.warr)
-         residuals=(self.farr-fitted)
+
+      func=np.poly1d(coefficients)
+      fitted=np.polyval(func,warr)
+      residuals=(farr-fitted)
 
 
-         #rejecting outliers and bad regions
-         mean_res=np.mean(residuals[i_order])
-         std_res=np.std(residuals[i_order])
-         if self.fittype=="individual":
-            i_fit=np.where( (self.oarr==o) & (residuals<uprej*std_res)  & (residuals>-lowrej*std_res))
-         else:   
-            i_fit=np.where( (self.farr > 0.) & (residuals<uprej*std_res)  & (residuals>-lowrej*std_res))
+      #rejecting outliers and bad regions
+      mean_res=np.mean(residuals[i_fit])
+      std_res=np.std(residuals[i_fit])
 
-         for j in range(len(rej_regions)):
-            region=np.array(rej_regions[j].split("-")).astype(float)
-            if len(region)==2:
-               i_tmp=range(len(self.warr))
-               i_region=np.where((self.warr > np.min(region)) & (self.warr < np.max(region)))
-               mask_r1=np.in1d(i_tmp, i_region)
-               mask_r2=np.in1d(i_tmp, i_fit)
-               i_fit=np.where(~mask_r1 & mask_r2)
-            else:
-               print "Bad region: ",rej_regions[j]
-            
-
-      #making list of outliers (only for plotting)
-      i_outliers=range(len(self.farr))
-      mask1=np.in1d(i_outliers, i_fit)
-      mask2=np.in1d(i_outliers, i_order)
-      i_outliers=np.where(~mask1 & mask2)
-
-      self.coefficients_tab[self.order_count]=coefficients      #storing the fit coefficients 
-
-      ax1 = self.figure.add_subplot(211)
-      ax1.plot(self.warr[i_order],self.farr[i_order],c="green") 
-      ax1.scatter(self.warr[i_outliers],self.farr[i_outliers],c="red",edgecolor="None") 
+      i_fit=np.where( (farr > 0.) & (residuals<uprej*std_res)  & (residuals>-lowrej*std_res))
       
-      ax1.axes.get_xaxis().set_visible(False)
-      ax1.plot(self.warr[i_order],fitted[i_order],c="blue")
+   if interactive:
+      plot_fit(warr,farr,fitted,i_fit)
 
-      ax2 = self.figure.add_subplot(212, sharex=ax1)
-      ax2.hold(False)
-      ax2.plot(self.warr[i_order],self.farr[i_order]/fitted[i_order],c="blue")
-      ax2.set_xlabel(r"Wavelength [$\AA$]")
-
-      plt.tight_layout()
-      self.canvas.draw()
+   print "Mean residual of fit: ",  mean_res     
+   print "Standard deviation of fit: ",  std_res
+   return coefficients,i_fit,fitted
 
 
-   def next_order(self):                                        #moving to the next order when fitting individual orders and the current order is not the last one
-      if (not self.order_count==(len(self.orders)-1) ) and (self.fittype=="individual"):
-         self.order_count+=1
-      self.fit()
 
-   def previous_order(self):                                    #moving to the previous order when fitting individual orders and the current order is not the first one
-      if not self.order_count==0:
-         self.order_count-=1
-      self.fit()
+def get_fit_params(fit_order_d=3,iterations_d=15,lowrej_d=1.5,uprej_d=3):
+  check_input=True
+  while check_input:
+     check_input=False
+     fit_order = raw_input("Order of the fit (default = %i): "%int(fit_order_d))
+     if fit_order=="":
+        fit_order=int(fit_order_d)
+     else:
+        try:
+           fit_order=int(fit_order)
+        except ValueError:
+           print "incorrect input"
+           check_input=True
 
-   def exit_fitting(self,textbox):                              #exit fitting window and store the normalized spectrum in outfile
-      
-      for j in range(len(self.orders)):
-         check_fit=False                                        #checks whether fit was performed for this order
-         if self.fittype=="individual":                         #if fitting individual orders
-            if type(self.coefficients_tab[j]) is np.ndarray:    #if the fitting was performed for this order 
-                  func=np.poly1d(self.coefficients_tab[j])
-                  check_fit=True
-         else:
-            func=np.poly1d(self.coefficients_tab[0])            #if fitting all the orders simultaneously the fitting coefficients are always stored in the first
-                                                                #element of coefficients_tab
-            check_fit=True
+  check_input=True
+  while check_input:
+     check_input=False
+     iterations = raw_input("Number of iterations (default = %i): "%int(iterations_d))
+     if iterations=="":
+        iterations=int(iterations_d)
+     else:
+        try:
+           iterations=int(iterations)
+        except ValueError:
+           print "incorrect input"
+           check_input=True
 
-         fitted=np.polyval(func,self.warr)
-         i_order=np.where(self.oarr==self.orders[j])
-         
-         if check_fit:
-            self.farr[i_order]=self.farr[i_order]/fitted[i_order]
-         else:
-            self.farr[i_order]=self.farr[i_order]
-     
-      c1 = fits.Column(name='Wavelength', format='D', array=self.warr, unit='Angstroms')
-      c2 = fits.Column(name='Flux', format='D', array=self.farr, unit='Counts')
-      c3 = fits.Column(name='Order', format='I', array=self.oarr)
+  check_input=True
+  while check_input:
+     check_input=False
+     lowrej = raw_input("Lower rejection limit (default = %.1f): "%float(lowrej_d))
+     if lowrej=="":
+        lowrej=float(lowrej_d)
+     else:
+        try:
+           lowrej=float(lowrej)
+        except ValueError:
+           print "incorrect input"
+           check_input=True
 
-      tbhdu = fits.BinTableHDU.from_columns([c1,c2,c3])
-      tbhdu.writeto(outfile, clobber=True)         
-      self.close()
+  check_input=True
+  while check_input:
+     check_input=False
+     uprej = raw_input("Upper rejection limit (default = %.1f): "%float(uprej_d))
+     if uprej=="":
+        uprej=float(uprej_d)
+     else:
+        try:
+           uprej=float(uprej)
+        except ValueError:
+           print "incorrect input"
+           check_input=True
 
-
-def normalize_spec(warr,farr,oarr,outfile,fit="individual"):
-
-   """A function calling the fitting window
-
-
-   Parameters
-   ----------
-   warr: ~numpy.ndarray
-       Array with wavelength
-
-   farr: ~numpy.ndarray
-       Array with fluxes
-
-   oarr: ~numpy.ndarray
-       Array with orders numbers
-
-   outfile: ~str
-       Name of the fits file the output will be written to
- 
-   fittype: ~str
-       Fitting type. Can be "individual" for fitting individual orders. For other values of this parameter whole spectrum will be fit simultaneously.
-  
-   """
-   fitting_app=QtGui.QApplication(sys.argv)
-   fitting_window=FitWindow(warr,farr,oarr,outfile,fit)
-   fitting_window.raise_()
-   fitting_app.exec_()
-   fitting_app.deleteLater()
-   return True
+  return fit_order,iterations,lowrej,uprej
 
 
-if __name__=="__main__":
+if __name__=='__main__':
+
    parser = argparse.ArgumentParser()
    parser.add_argument("spectrum_fits",help="Fits file with an extracted HRS spectrum",type=str)
+   parser.add_argument('-f','--fit_pars', nargs='+', help='List of fitting parameters: fit_order, iterations, lowrej, uprej', required=False)
    parser.add_argument("-a","--all",help="Fits all orders simultaneously",action="store_true")
+   parser.add_argument("-i","--interactive",help="Interactive fitting",action="store_true")
    args=parser.parse_args()
 
-   img_sci = args.spectrum_fits
-   hdu_sci = fits.open(img_sci)
-   wave_sci = hdu_sci[1].data['Wavelength']
-   flux_sci = hdu_sci[1].data['Flux']
-   order_sci = hdu_sci[1].data['Order']
-
-   #sorting arrays
-   i_sort=np.argsort(wave_sci)
-   wave_sci=wave_sci[i_sort]
-   flux_sci=flux_sci[i_sort]
-   order_sci=order_sci[i_sort]
-
-   outfile="n"+sys.argv[1]
-   if args.all:
-      normalize_spec(wave_sci,flux_sci,order_sci,outfile,fit="all")
+   if (args.interactive) or (not args.fit_pars==None):
+      check_input=True
    else:
-      normalize_spec(wave_sci,flux_sci,order_sci,outfile)
+      print "Fitting parameters should be provided ('-f') or script should be run in interactive mode ('-i')"
+      check_input=False
+      
+   if (not args.fit_pars==None):
+      if len(args.fit_pars)==4:
+         fit_order=int(args.fit_pars[0])
+         iterations=int(args.fit_pars[1])
+         lowrej=float(args.fit_pars[2])
+         uprej=float(args.fit_pars[3])
+      else:
+         print "Error: list of fitting parameters should contain [fitting_order, interation, lower_rejection_lim, upper_rej_lim]"
+         check_input=False
+
+   if check_input:
+      img_sci = args.spectrum_fits
+      hdu_sci = fits.open(img_sci)
+      wave_sci = hdu_sci[1].data['Wavelength']
+      flux_sci = hdu_sci[1].data['Flux']
+      order_sci = hdu_sci[1].data['Order']
+
+      #sorting arrays to have 
+      i_sort=np.argsort(wave_sci)
+      wave_sci=wave_sci[i_sort]
+      flux_sci=flux_sci[i_sort]
+      order_sci=order_sci[i_sort]
+
+
+      w_arr=np.array([])
+      f_arr=np.array([])
+      o_arr=np.array([])
+
+      if not args.all:
+         for o in np.unique(order_sci):
+            o = int(o)
+            order_i=np.where(order_sci==o )
+
+            print 
+            print "Normalizing order ",o
+
+            check=True
+            while check:
+               check=False
+
+               if args.interactive:
+                  if not args.fit_pars==None:
+                     fit_order,iterations,lowrej,uprej=get_fit_params(fit_order,iterations,lowrej,uprej)
+                  else:
+                     fit_order,iterations,lowrej,uprej=get_fit_params()          
+
+               warr_o=wave_sci[order_i]
+               farr_o=flux_sci[order_i]
+
+               if args.interactive:
+                  coefficients,i_fit,fitted=fit_spec(warr_o,farr_o,iterations,fit_order,lowrej,uprej,interactive=True)
+               else:
+                  coefficients,i_fit,fitted=fit_spec(warr_o,farr_o,iterations,fit_order,lowrej,uprej,interactive=False)
+              
+               if args.interactive:
+                  check_input=True
+                  while check_input==True:
+                     repeat=raw_input("Repeat fitting? (default = no): ")
+                     if repeat=="y" or repeat=="yes" or repeat=="Y" or repeat=="YES":
+                        check_input=False
+                     elif repeat=="n" or repeat=="no" or repeat=="N" or repeat=="NO" or repeat=="":
+                        check_input=False
+                        check=False
+                  print
+            w_arr=np.append(w_arr,warr_o)
+            f_arr=np.append(f_arr,farr_o/fitted)
+            o_arr=np.append(o_arr,order_sci[order_i])
+
+      else:
+
+         print 
+         print "Normalizing whole spectrum "
+
+         check=True
+         while check:
+            check=False
+
+            if args.interactive:
+               if not args.fit_pars==None:
+                  fit_order,iterations,lowrej,uprej=get_fit_params(fit_order,iterations,lowrej,uprej)
+               else:
+                  fit_order,iterations,lowrej,uprej=get_fit_params()          
+
+            if args.interactive:
+               coefficients,i_fit,fitted=fit_spec(wave_sci,flux_sci,iterations,fit_order,lowrej,uprej,interactive=True)
+            else:
+               coefficients,i_fit,fitted=fit_spec(wave_sci,flux_sci,iterations,fit_order,lowrej,uprej,interactive=False)
+            
+            if args.interactive:
+               check_input=True
+               while check_input==True:
+                  repeat=raw_input("Repeat fitting? (default = no): ")
+                  if repeat=="y" or repeat=="yes" or repeat=="Y" or repeat=="YES":
+                     check_input=False
+                  elif repeat=="n" or repeat=="no" or repeat=="N" or repeat=="NO" or repeat=="":
+                     check_input=False
+                     check=False
+               print
+         w_arr=wave_sci
+         f_arr=flux_sci/fitted
+         o_arr=order_sci
+
+      outfile="n"+args.spectrum_fits
+
+      #Wavelength and Order columns need to be overwritten since the data was sorted
+      hdu_sci[1].data['Wavelength']=w_arr
+      hdu_sci[1].data['Flux']=f_arr
+      hdu_sci[1].data['Order']=o_arr
+
+      hdu_sci.writeto(outfile, clobber=True)
+
