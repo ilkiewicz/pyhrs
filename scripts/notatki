@@ -1,0 +1,4 @@
+ python scripts/blaze_correct.py pH201505120014_spec.fits pH201505060014_spec.fits scripts/flat_spec.dat 
+
+
+
