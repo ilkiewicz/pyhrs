@@ -12,7 +12,29 @@ import argparse
 
 
 def merge_orders(wave,flux,order,keep=False):
+   """Scales echelle orders using overlapping parts and merges the result. By default the result wavelength table will contain only one measurement per wavelength (i.e. in the overlapping part only one measurement will be kept). 
 
+   Parameters
+   ----------
+   wave: array of floats
+       Array containing wavelength
+   flux: array of floats
+       Array containing measured counts/flux
+   order: array of floats
+       Array containing numbers of orders of corresponding wave/flux
+   keep: bool
+       If true the overlapping part will not be deleted
+
+   Returns
+   -------
+   w_arr: array of floats
+       Array containing wavelength
+   f_arr: array of floats
+       Array containing scaled counts/flux
+   o_arr: array of floats
+       Array containing order of corresponding wave/flux
+
+   """
    w_arr=np.array([])
    f_arr=np.array([])
    o_arr=np.array([])
@@ -124,7 +146,7 @@ if __name__=='__main__':
 
 
 
-
+   w_arr,f_arr,o_arr=merge_orders(wave,flux,order,keep=args.keep)
 
 
 
