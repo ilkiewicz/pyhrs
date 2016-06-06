@@ -6,7 +6,23 @@ import pylab as pl
 import argparse
 
 def plot_fit(warr,farr,fitted,i_fit):
+   """Plots the results of a fit
 
+   Parameters
+   ----------
+   warr: ndarray of floats
+       Array containing wavelength
+   farr: ndarray of floats
+       Array containing measured counts/flux
+   fitted: ndarray of floats
+       Array containing fitted value of counts/flux
+   i_fit: ndarray of ints
+       Array containing indices of points in warr and farr that were used for fitting (i.e. are not outliers) 
+
+   Returns
+   -------
+   Shows the fit in a new window
+   """
    #making list of outliers
    i_outliers=range(len(farr))
    i_all=np.where(farr>0.)
@@ -32,6 +48,32 @@ def plot_fit(warr,farr,fitted,i_fit):
 
 
 def fit_spec(warr,farr,iterations,fit_order,lowrej,uprej,interactive=False):
+   """Fits a polynomial to the spectrum; has rejection algorithm
+   Parameters
+   ----------
+   warr: ndarray of floats
+       Array containing wavelength
+   farr: ndarray of floats
+       Array containing measured counts/flux
+   iterations: int
+       Number of iterations
+   fit_order: int
+       Order of the fit
+   lowrej: int
+       Lower rejection limits in sigma units
+   uprej: int
+       Upper rejection limits in sigma units
+   interactive: bool
+       If true the function will be run in interactive mode
+   Returns
+   -------
+   coefficients: ndarray
+       Array containing coefficients of the polynomial fit
+   fitted: array of floats
+       Array containing fitted value of counts/flux
+   i_fit: array of int
+       Array containing indices of points in warr and farr that were used for fitting (i.e. are not outliers) 
+   """
    for i in range(iterations):          #iterative fitting
       if i==0:                          #first iteration - there are no residuals available
          coefficients=np.polyfit(warr, farr, fit_order)
@@ -39,7 +81,7 @@ def fit_spec(warr,farr,iterations,fit_order,lowrej,uprej,interactive=False):
         
       else:                             #fitting only to good points (not outliers)
          if i_fit[0].size==0:           #if all point are outliers print error
-            print "Error while rejecting points - try higher values of upper rejection and lower rejection"
+            print("Error while rejecting points - try higher values of upper rejection and lower rejection")
             i_fit=np.where(farr > 0.)
          coefficients=np.polyfit(warr[i_fit], farr[i_fit], fit_order)
                
@@ -58,13 +100,35 @@ def fit_spec(warr,farr,iterations,fit_order,lowrej,uprej,interactive=False):
    if interactive:
       plot_fit(warr,farr,fitted,i_fit)
 
-   print "Mean residual of fit: ",  mean_res     
-   print "Standard deviation of fit: ",  std_res
+   print("Mean residual of fit: %f" %mean_res)   
+   print("Standard deviation of fit: %f" %std_res)
    return coefficients,i_fit,fitted
 
 
 
 def get_fit_params(fit_order_d=3,iterations_d=15,lowrej_d=1.5,uprej_d=3):
+  """Function that asks the user to choose the fit parameters
+   Parameters
+   ----------
+   fit_order_d=: int
+       Order of the fit
+   iterations_d: int
+       Number of iterations
+   lowrej_d: int
+       Lower rejection limits in sigma units
+   uprej_d: int
+       Upper rejection limits in sigma units
+   Returns
+   -------
+   fit_order_d=: int
+       Order of the fit
+   iterations_d: int
+       Number of iterations
+   lowrej_d: int
+       Lower rejection limits in sigma units
+   uprej_d: int
+       Upper rejection limits in sigma units
+  """
   check_input=True
   while check_input:
      check_input=False
@@ -75,7 +139,7 @@ def get_fit_params(fit_order_d=3,iterations_d=15,lowrej_d=1.5,uprej_d=3):
         try:
            fit_order=int(fit_order)
         except ValueError:
-           print "incorrect input"
+           print("incorrect input")
            check_input=True
 
   check_input=True
@@ -88,7 +152,7 @@ def get_fit_params(fit_order_d=3,iterations_d=15,lowrej_d=1.5,uprej_d=3):
         try:
            iterations=int(iterations)
         except ValueError:
-           print "incorrect input"
+           print("incorrect input")
            check_input=True
 
   check_input=True
@@ -101,7 +165,7 @@ def get_fit_params(fit_order_d=3,iterations_d=15,lowrej_d=1.5,uprej_d=3):
         try:
            lowrej=float(lowrej)
         except ValueError:
-           print "incorrect input"
+           print("incorrect input")
            check_input=True
 
   check_input=True
@@ -114,7 +178,7 @@ def get_fit_params(fit_order_d=3,iterations_d=15,lowrej_d=1.5,uprej_d=3):
         try:
            uprej=float(uprej)
         except ValueError:
-           print "incorrect input"
+           print("incorrect input")
            check_input=True
 
   return fit_order,iterations,lowrej,uprej
@@ -132,7 +196,7 @@ if __name__=='__main__':
    if (args.interactive) or (not args.fit_pars==None):
       check_input=True
    else:
-      print "Fitting parameters should be provided ('-f') or script should be run in interactive mode ('-i')"
+      print("Fitting parameters should be provided ('-f') or script should be run in interactive mode ('-i')")
       check_input=False
       
    if (not args.fit_pars==None):
@@ -142,7 +206,7 @@ if __name__=='__main__':
          lowrej=float(args.fit_pars[2])
          uprej=float(args.fit_pars[3])
       else:
-         print "Error: list of fitting parameters should contain [fitting_order, interation, lower_rejection_lim, upper_rej_lim]"
+         print("Error: list of fitting parameters should contain [fitting_order, interation, lower_rejection_lim, upper_rej_lim]")
          check_input=False
 
    if check_input:
@@ -168,8 +232,8 @@ if __name__=='__main__':
             o = int(o)
             order_i=np.where(order_sci==o )
 
-            print 
-            print "Normalizing order ",o
+
+            print("\nNormalizing order %d" %o)
 
             check=True
             while check:
@@ -198,15 +262,15 @@ if __name__=='__main__':
                      elif repeat=="n" or repeat=="no" or repeat=="N" or repeat=="NO" or repeat=="":
                         check_input=False
                         check=False
-                  print
+                  print("\n")
             w_arr=np.append(w_arr,warr_o)
             f_arr=np.append(f_arr,farr_o/fitted)
             o_arr=np.append(o_arr,order_sci[order_i])
 
       else:
 
-         print 
-         print "Normalizing whole spectrum "
+
+         print("\nNormalizing whole spectrum ")
 
          check=True
          while check:
@@ -232,7 +296,7 @@ if __name__=='__main__':
                   elif repeat=="n" or repeat=="no" or repeat=="N" or repeat=="NO" or repeat=="":
                      check_input=False
                      check=False
-               print
+               print("\n")
          w_arr=wave_sci
          f_arr=flux_sci/fitted
          o_arr=order_sci
