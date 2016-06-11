@@ -181,8 +181,8 @@ class FitWavelengthWindow(QtGui.QWidget):
    def exit_fitting(self,textbox):  
                           
 
-      warr=self.p(self.xarr, self.oarr)
-      c1 = fits.Column(name='Wavelength', format='D', array=warr, unit='Angstroms')
+      out_warr=self.p(self.xarr, self.oarr)
+      c1 = fits.Column(name='Wavelength', format='D', array=out_warr, unit='Angstroms')
       c2 = fits.Column(name='Flux', format='D', array=self.farr, unit='Counts')
       c3 = fits.Column(name='Order', format='I', array=self.oarr)
 
