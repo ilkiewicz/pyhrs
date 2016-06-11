@@ -13,7 +13,7 @@ if __name__=='__main__':
 
 
    parser = argparse.ArgumentParser()
-   parser.add_argument("-i","--infile",help="Name of the raw file to be processed",type=str,required=True)
+   parser.add_argument("infile",help="Name of the raw file to be processed",type=str,required=True)
    parser.add_argument("-b","--bias",help="Path to the bias frame (e.g. [mr]/HBIAS.fits)",type=str,required=False)
    parser.add_argument("-o","--orderframe",help="Path to the order frame (e.g. [mr]/HORDER.fits)",type=str,required=True)
    parser.add_argument("-f","--flat",help="Path to the flat field frame (e.g. [mr]/HFLAT.fits)",type=str,required=True)
@@ -22,7 +22,7 @@ if __name__=='__main__':
 
 
 
-   print args.bias
+
    if args.bias=='None' or args.bias==None: 
       bias=None
    else:
