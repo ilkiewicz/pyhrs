@@ -1,9 +1,5 @@
-
-import sys
 from astropy.io import fits
 import numpy as np
-from pylab import *
-from scipy import integrate
 import math
 import argparse
 
@@ -125,7 +121,6 @@ def merge_orders(wave,flux,order,keep=False):
                   w_arr=np.append(w_arr,[w_tmp1[i]]) 
                   f_arr=np.append(f_arr,[f_tmp1[i]]) 
                   o_arr=np.append(o_arr,[o_tmp1[i]]) 
-
    return w_arr,f_arr,o_arr
 
 
@@ -134,12 +129,11 @@ def merge_orders(wave,flux,order,keep=False):
 if __name__=='__main__':
 
    parser = argparse.ArgumentParser()
-   parser.add_argument("-i","--infile",help="Name of the file with spectrum to be merged",type=str,required=True)
+   parser.add_argument("infile",help="Name of the file with spectrum to be merged",type=str)
    parser.add_argument("-k","--keep",help="The overlapping regions will not be deleted", action='store_true')
    args=parser.parse_args()
 
-   img = args.infile
-   hdu = fits.open(img)
+   hdu = fits.open(args.infile)
    wave = hdu[1].data['Wavelength']
    flux = hdu[1].data['Flux']
    order = hdu[1].data['Order']
@@ -148,11 +142,13 @@ if __name__=='__main__':
 
    w_arr,f_arr,o_arr=merge_orders(wave,flux,order,keep=args.keep)
 
+   i_sort=np.argsort(w_arr)
 
 
-   c1 = fits.Column(name='Wavelength', format='D', array=w_arr, unit='Angstroms')
-   c2 = fits.Column(name='Flux', format='D', array=f_arr, unit='Counts')
-   c3 = fits.Column(name='Order', format='I', array=o_arr)
+
+   c1 = fits.Column(name='Wavelength', format='D', array=w_arr[i_sort], unit='Angstroms')
+   c2 = fits.Column(name='Flux', format='D', array=f_arr[i_sort], unit='Counts')
+   c3 = fits.Column(name='Order', format='I', array=o_arr[i_sort])
 
    outfile="m"+args.infile
    tbhdu = fits.BinTableHDU.from_columns([c1,c2,c3])
